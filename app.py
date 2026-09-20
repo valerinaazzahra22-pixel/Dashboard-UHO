@@ -424,7 +424,18 @@ block(f"""
            terang dari aturan sidebar umum — sebab kotaknya sendiri berlatar
            putih (mengikuti tema terang), sehingga teks terang di atasnya
            jadi tak terlihat. Dikecualikan di sini dengan specificity yang
-           SENGAJA dibuat lebih tinggi dari aturan sidebar umum. --- */
+           SENGAJA dibuat lebih tinggi dari aturan sidebar umum.
+           Dobel selector: pakai data-testid BAWAAN STREAMLIT (stabil lintas
+           versi) DAN atribut data-baseweb (bisa berbeda antar versi
+           Streamlit/BaseWeb) supaya tetap berfungsi meski versi yang
+           ter-install di server (mis. Streamlit Cloud) berbeda dari lokal. --- */
+    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stSelectbox"],
+    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stSelectbox"] *,
+    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stMultiSelect"],
+    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stMultiSelect"] *,
+    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stTextInput"] *,
+    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stNumberInput"] *,
+    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stSelectSlider"] *,
     .stApp.stApp.stApp section[data-testid="stSidebar"] div[data-baseweb="select"],
     .stApp.stApp.stApp section[data-testid="stSidebar"] div[data-baseweb="select"] *,
     .stApp.stApp.stApp section[data-testid="stSidebar"] div[data-baseweb="tag"],
@@ -433,6 +444,8 @@ block(f"""
     .stApp.stApp.stApp section[data-testid="stSidebar"] div[data-baseweb="input"] * {{
         color: {UHO_INK} !important;
     }}
+    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stMultiSelect"] div[data-baseweb="select"] > div,
     .stApp.stApp.stApp section[data-testid="stSidebar"] div[data-baseweb="select"] > div {{
         background-color: #FFFFFF !important;
         border-color: {UHO_BORDER} !important;
@@ -554,7 +567,7 @@ if halaman == "Ringkasan Umum":
         margin=dict(t=30, b=10, l=10, r=10),
         font=dict(family="Georgia, Times New Roman, serif", color=UHO_INK),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
     st.caption("Sumbu peringkat dibalik: posisi lebih tinggi pada grafik berarti peringkat yang lebih baik.")
 
     block('<div class="section-title">Papan Skor Seluruh Lembaga</div>')
@@ -612,7 +625,7 @@ if halaman == "Ringkasan Umum":
             return out
 
         styled = df_text.style.apply(styler, axis=None)
-        st.dataframe(styled, use_container_width=True, height=df_table_height(len(df_text)))
+        st.dataframe(styled, width="stretch", height=df_table_height(len(df_text)))
 
     with tab_nas:
         st.caption(f"Menampilkan peringkat & skor nasional untuk tahun {years_range[0]}–{years_range[-1]} sesuai filter pada sidebar.")
@@ -643,8 +656,17 @@ if halaman == "Ringkasan Umum":
             c = colors.get(val, UHO_NAVY)
             return f"background-color:{c}; color:#FFFFFF; font-weight:700; text-align:center; border-radius:4px;"
 
-        styled = df_board.style.applymap(color_grade, subset=["Skor"])
-        st.dataframe(styled, use_container_width=True, hide_index=True, height=df_table_height(len(df_board)))
+        def _style_grade_col(styler_obj, func, subset):
+            """Kompatibel lintas versi pandas: Styler.applymap() dihapus total
+            di pandas 3.x (diganti Styler.map()). Ini pernah membuat app
+            error di Streamlit Cloud walau berjalan mulus di lokal, karena
+            versi pandas yang ter-install bisa berbeda antara kedua tempat."""
+            if hasattr(styler_obj, "map"):
+                return styler_obj.map(func, subset=subset)
+            return styler_obj.applymap(func, subset=subset)
+
+        styled = _style_grade_col(df_board.style, color_grade, ["Skor"])
+        st.dataframe(styled, width="stretch", hide_index=True, height=df_table_height(len(df_board)))
 
     block(f"""
     <div style="font-size:13px; color:{UHO_GREY};">
@@ -732,7 +754,7 @@ elif halaman == "Detail per Lembaga":
                     legend=dict(orientation="h", yanchor="bottom", y=1.0, font=dict(size=10, color=UHO_INK)),
                     font=dict(family="Georgia, Times New Roman, serif", size=11, color=UHO_INK),
                 )
-                st.plotly_chart(fig2, use_container_width=True, key=f"chart_{lembaga}")
+                st.plotly_chart(fig2, width="stretch", key=f"chart_{lembaga}")
             else:
                 st.info(
                     f"Universitas Halu Oleo belum tercatat dalam pemeringkatan **{lembaga}** "
@@ -768,7 +790,7 @@ elif halaman == "Metodologi Skor":
             {"Rentang Peringkat Nasional": "> 250", "Skor": "C", "Predikat": "Perlu Peningkatan"},
             {"Rentang Peringkat Nasional": "Tidak masuk daftar", "Skor": "N/A", "Predikat": "Belum Terpetakan"},
         ])
-        st.dataframe(df_nas_tier, hide_index=True, use_container_width=True)
+        st.dataframe(df_nas_tier, hide_index=True, width="stretch")
     with colB:
         st.markdown("**Tier Peringkat Dunia**")
         df_dunia_tier = pd.DataFrame([
@@ -780,7 +802,7 @@ elif halaman == "Metodologi Skor":
             {"Rentang Peringkat Dunia": "> 8.000", "Skor": "C", "Predikat": "Perlu Peningkatan"},
             {"Rentang Peringkat Dunia": "Tidak masuk daftar", "Skor": "N/A", "Predikat": "Belum Terpetakan"},
         ])
-        st.dataframe(df_dunia_tier, hide_index=True, use_container_width=True)
+        st.dataframe(df_dunia_tier, hide_index=True, width="stretch")
 
     block("""
     <div class="note-box">
