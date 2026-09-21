@@ -463,76 +463,52 @@ block(f"""
     }}
     thead tr th {{ background-color: {UHO_NAVY} !important; color: #FFFFFF !important; }}
 
-    /* --- Dropdown/listbox (selectbox, multiselect, select_slider) sering
-           dirender oleh Streamlit di luar wrapper .stApp (sebagai portal),
-           sehingga aturan warna di atas tidak menjangkaunya. Dipaksa
-           terang di sini secara terpisah agar teks pilihan selalu terbaca. --- */
-    div[data-baseweb="popover"],
-    div[data-baseweb="popover"] div[data-baseweb="menu"] {{
+    /* --- Dropdown pilihan (Selectbox/MultiSelect di Streamlit versi baru
+           memakai komponen "React-Aria ComboBox", BUKAN BaseWeb). Panelnya
+           dikenali lewat data-testid="stSelectboxVirtualDropdown", dan tiap
+           barisnya adalah <div role="option"> (bukan <li>). Diverifikasi
+           langsung dari HTML sungguhan, bukan tebakan, supaya presisi. Ia
+           dirender sebagai portal position:fixed menempel di document.body,
+           jadi TIDAK cukup dijangkau lewat selector di dalam ".stApp" atau
+           "section[data-testid='stSidebar']" — harus ditarget langsung
+           sebagai elemen tingkat atas. --- */
+    div[data-testid="stSelectboxVirtualDropdown"] {{
         background-color: #FFFFFF !important;
     }}
-    div[data-baseweb="popover"] *,
-    ul[role="listbox"] li,
-    ul[role="listbox"] li *,
-    li[role="option"],
-    li[role="option"] * {{
+    div[data-testid="stSelectboxVirtualDropdown"] *,
+    [role="listbox"],
+    [role="listbox"] *,
+    [role="option"],
+    [role="option"] * {{
         color: {UHO_INK} !important;
+    }}
+    [role="option"] {{
         background-color: #FFFFFF !important;
     }}
-    li[role="option"]:hover,
-    li[aria-selected="true"] {{
+    [role="option"]:hover,
+    [role="option"][aria-selected="true"],
+    [role="option"][data-focused="true"],
+    [role="option"][data-selected="true"] {{
         background-color: #EEF0F3 !important;
     }}
-
-    /* --- PENGUAT KHUSUS: kalau panel dropdown ternyata dirender DI DALAM
-           sidebar (bukan di luar sebagai portal terpisah — ini yang
-           ternyata terjadi dan menyebabkan teks "Tahunan" / "Per 6 Bulan"
-           tak terlihat), aturan sidebar umum ("semua teks jadi putih") akan
-           MENGALAHKAN aturan popover polos di atas karena lebih spesifik.
-           Maka di sini dibuat aturan KHUSUS sidebar dengan specificity yang
-           SENGAJA dibuat lebih tinggi lagi, supaya menang di kedua skenario
-           (dropdown di dalam ATAU di luar sidebar). --- */
-    .stApp.stApp.stApp section[data-testid="stSidebar"] div[data-baseweb="popover"],
-    .stApp.stApp.stApp section[data-testid="stSidebar"] div[data-baseweb="popover"] *,
-    .stApp.stApp.stApp section[data-testid="stSidebar"] ul[role="listbox"],
-    .stApp.stApp.stApp section[data-testid="stSidebar"] ul[role="listbox"] *,
-    .stApp.stApp.stApp section[data-testid="stSidebar"] li[role="option"],
-    .stApp.stApp.stApp section[data-testid="stSidebar"] li[role="option"] * {{
-        color: {UHO_INK} !important;
-        background-color: #FFFFFF !important;
-    }}
-    .stApp.stApp.stApp section[data-testid="stSidebar"] li[role="option"]:hover,
-    .stApp.stApp.stApp section[data-testid="stSidebar"] li[aria-selected="true"] {{
-        background-color: #EEF0F3 !important;
-    }}
-
-    /* --- Kotak ISIAN bernuansa TERANG di dalam sidebar (kotak select box
-           yang tertutup, chip multiselect) TIDAK ikut memakai warna terang
-           dari aturan sidebar umum — sebab kotaknya sendiri berlatar putih,
-           sehingga teks terang di atasnya jadi tak terlihat.
-           PENTING: target dipersempit HANYA ke kontrol input itu sendiri
-           (div[data-baseweb="select"] ke bawah), BUKAN ke seluruh isi
-           wrapper [data-testid="stSelectbox"]/"stMultiSelect" — sebab
-           wrapper itu juga membungkus LABEL judul widget (mis. "Filter
-           lembaga pemeringkat"), yang harus tetap berwarna terang karena
-           duduk langsung di atas latar navy, bukan di atas kotak putih. --- */
-    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stSelectbox"] div[data-baseweb="select"],
-    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stSelectbox"] div[data-baseweb="select"] *,
-    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stMultiSelect"] div[data-baseweb="select"],
-    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stMultiSelect"] div[data-baseweb="select"] *,
-    .stApp.stApp.stApp section[data-testid="stSidebar"] div[data-baseweb="select"],
-    .stApp.stApp.stApp section[data-testid="stSidebar"] div[data-baseweb="select"] *,
-    .stApp.stApp.stApp section[data-testid="stSidebar"] div[data-baseweb="tag"],
-    .stApp.stApp.stApp section[data-testid="stSidebar"] div[data-baseweb="tag"] *,
+    /* --- Kotak ISIAN di dalam sidebar (kotak Select box, kotak pencarian
+           MultiSelect) memakai warna latar TERANG bawaan tema Streamlit
+           (secara default, bukan navy), padahal warna teksnya ikut aturan
+           umum sidebar (terang) — hasilnya teks nyaris tak terlihat di atas
+           latar terang tersebut. Diverifikasi langsung lewat inspeksi HTML
+           sungguhan (bukan tebakan): elemen sesungguhnya adalah <input>
+           polos di dalam [data-testid="stSelectbox"] / "stMultiSelect",
+           BUKAN struktur BaseWeb seperti pada versi Streamlit lama. --- */
+    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stSelectbox"] input,
+    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stMultiSelect"] input,
     .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stTextInput"] input,
     .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stNumberInput"] input {{
         color: {UHO_INK} !important;
     }}
-    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
-    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stMultiSelect"] div[data-baseweb="select"] > div,
-    .stApp.stApp.stApp section[data-testid="stSidebar"] div[data-baseweb="select"] > div {{
-        background-color: #FFFFFF !important;
-        border-color: {UHO_BORDER} !important;
+    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stSelectbox"] input::placeholder,
+    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stMultiSelect"] input::placeholder {{
+        color: {UHO_GREY} !important;
+        opacity: 1 !important;
     }}
 </style>
 """)
