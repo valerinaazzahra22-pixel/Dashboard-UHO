@@ -56,9 +56,19 @@ IDENTITAS_UHO = [
 ]
 
 # ==========================================================================
-# 3. DATA PEMERINGKATAN (sumber: Data_Ranking_UHO.xlsx yang diunggah pengguna)
+# 3. DATA PEMERINGKATAN
+#    Sumber data DIPISAH ke berkas "data_ranking.csv" (format tabel biasa,
+#    bisa dibuka & diedit lewat Excel/Google Sheets) supaya pembaruan data
+#    di tahun-tahun berikutnya TIDAK PERLU mengedit kode ini sama sekali.
+#    Format kolom: Lembaga, Tahun, Nasional, Dunia (kosongkan sel bila
+#    lembaga tsb belum memeringkat UHO pada tahun itu).
+#    Untuk menambah data tahun baru (mis. 2027): cukup tambahkan baris baru
+#    di data_ranking.csv untuk tiap lembaga dengan Tahun=2027, lalu commit
+#    ke GitHub — dashboard otomatis menampilkannya tanpa perlu ubah app.py.
+#    Bila berkas CSV tidak ditemukan, dashboard tetap berjalan memakai data
+#    bawaan (DEFAULT_RAW) di bawah ini sebagai cadangan (fallback).
 # ==========================================================================
-RAW = {
+DEFAULT_RAW = {
     "THE WUR": {
         2021: (None, None), 2022: (None, None), 2023: (None, None),
         2024: (None, None), 2025: (11, 1501), 2026: (35, 1501),
@@ -101,8 +111,54 @@ RAW = {
     },
 }
 
-YEARS = [2021, 2022, 2023, 2024, 2025, 2026]
-LEMBAGA_LIST = list(RAW.keys())
+_DATA_CSV_CANDIDATES = ["data_ranking.csv", "data/data_ranking.csv"]
+
+def _find_data_csv_path():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    for rel in _DATA_CSV_CANDIDATES:
+        path = os.path.join(base_dir, rel)
+        if os.path.exists(path):
+            return path
+    return None
+
+def load_ranking_data():
+    """Muat data peringkat dari data_ranking.csv bila tersedia; kalau tidak,
+    pakai DEFAULT_RAW bawaan. Mengembalikan (raw_dict, lembaga_order, is_csv)."""
+    csv_path = _find_data_csv_path()
+    if csv_path is None:
+        return DEFAULT_RAW, list(DEFAULT_RAW.keys()), False
+    try:
+        df_csv = pd.read_csv(csv_path)
+        df_csv.columns = [c.strip() for c in df_csv.columns]
+        required = {"Lembaga", "Tahun", "Nasional", "Dunia"}
+        if not required.issubset(set(df_csv.columns)):
+            return DEFAULT_RAW, list(DEFAULT_RAW.keys()), False
+        raw = {}
+        order = []
+        for _, row in df_csv.iterrows():
+            lembaga = str(row["Lembaga"]).strip()
+            if lembaga not in raw:
+                raw[lembaga] = {}
+                order.append(lembaga)
+            tahun = int(row["Tahun"])
+            nas = row["Nasional"]
+            dun = row["Dunia"]
+            nas = None if pd.isna(nas) else int(nas)
+            dun = None if pd.isna(dun) else int(dun)
+            raw[lembaga][tahun] = (nas, dun)
+        if not raw:
+            return DEFAULT_RAW, list(DEFAULT_RAW.keys()), False
+        return raw, order, True
+    except Exception:
+        # Kalau CSV rusak/format salah, tetap jalan dengan data bawaan
+        # daripada membuat seluruh dashboard error.
+        return DEFAULT_RAW, list(DEFAULT_RAW.keys()), False
+
+RAW, LEMBAGA_LIST, DATA_FROM_CSV = load_ranking_data()
+
+# Tahun dihitung otomatis dari data yang ada — begitu tahun baru (mis. 2027)
+# ditambahkan di CSV, opsi tahun di filter & grafik ikut bertambah otomatis.
+YEARS = sorted({year for data in RAW.values() for year in data.keys()})
 
 DESKRIPSI_LEMBAGA = {
     "THE WUR": "Times Higher Education World University Rankings — pengajaran, riset, sitasi, kolaborasi internasional, dan income industri.",
@@ -116,18 +172,27 @@ DESKRIPSI_LEMBAGA = {
     "EduRank": "EduRank.org — reputasi akademik, kekuatan alumni, dan sitasi riset.",
     "Scimago Institutions Ranking": "SCImago Institutions Rankings — output riset, inovasi (paten), dan visibilitas web (data Scopus).",
 }
+DESKRIPSI_DEFAULT = "Deskripsi lembaga ini belum ditambahkan — lengkapi di kamus DESKRIPSI_LEMBAGA pada kode bila diperlukan."
 
 # ==========================================================================
 # 4. TRANSFORMASI DATA
+#    Rata-rata per tahun kini DIHITUNG OTOMATIS (bukan angka tetap) dari
+#    seluruh nilai yang tersedia pada RAW — sehingga ikut ter-update begitu
+#    data tahun baru ditambahkan di data_ranking.csv.
 # ==========================================================================
-RATA_RATA = {
-    2021: {"Nasional": 25.0, "Dunia": 2585.5},
-    2022: {"Nasional": 40.0, "Dunia": 3241.0},
-    2023: {"Nasional": 43.0, "Dunia": 3130.75},
-    2024: {"Nasional": 48.6, "Dunia": 2892.2},
-    2025: {"Nasional": 37.875, "Dunia": 2470.43},
-    2026: {"Nasional": 36.67, "Dunia": 1962.0},
-}
+def _hitung_rata_rata():
+    hasil = {}
+    for year in YEARS:
+        nas_vals = [RAW[l][year][0] for l in LEMBAGA_LIST if year in RAW[l] and RAW[l][year][0] is not None]
+        dun_vals = [RAW[l][year][1] for l in LEMBAGA_LIST if year in RAW[l] and RAW[l][year][1] is not None]
+        hasil[year] = {
+            "Nasional": (sum(nas_vals) / len(nas_vals)) if nas_vals else None,
+            "Dunia": (sum(dun_vals) / len(dun_vals)) if dun_vals else None,
+        }
+    return hasil
+
+RATA_RATA = _hitung_rata_rata()
+
 
 # ==========================================================================
 # 5. METODOLOGI PENSKORAN (A/B/C) — KLASIFIKASI INTERNAL DASHBOARD
@@ -162,7 +227,7 @@ def rank_to_grade(rank, scope="Nasional"):
 def latest_value(lembaga, scope):
     idx = 0 if scope == "Nasional" else 1
     for year in reversed(YEARS):
-        val = RAW[lembaga][year][idx]
+        val = RAW.get(lembaga, {}).get(year, (None, None))[idx]
         if val is not None:
             return year, val
     return None, None
@@ -172,7 +237,7 @@ def previous_value(lembaga, scope, before_year):
     for year in reversed(YEARS):
         if year >= before_year:
             continue
-        val = RAW[lembaga][year][idx]
+        val = RAW.get(lembaga, {}).get(year, (None, None))[idx]
         if val is not None:
             return year, val
     return None, None
@@ -419,6 +484,28 @@ block(f"""
         background-color: #EEF0F3 !important;
     }}
 
+    /* --- PENGUAT KHUSUS: kalau panel dropdown ternyata dirender DI DALAM
+           sidebar (bukan di luar sebagai portal terpisah — ini yang
+           ternyata terjadi dan menyebabkan teks "Tahunan" / "Per 6 Bulan"
+           tak terlihat), aturan sidebar umum ("semua teks jadi putih") akan
+           MENGALAHKAN aturan popover polos di atas karena lebih spesifik.
+           Maka di sini dibuat aturan KHUSUS sidebar dengan specificity yang
+           SENGAJA dibuat lebih tinggi lagi, supaya menang di kedua skenario
+           (dropdown di dalam ATAU di luar sidebar). --- */
+    .stApp.stApp.stApp section[data-testid="stSidebar"] div[data-baseweb="popover"],
+    .stApp.stApp.stApp section[data-testid="stSidebar"] div[data-baseweb="popover"] *,
+    .stApp.stApp.stApp section[data-testid="stSidebar"] ul[role="listbox"],
+    .stApp.stApp.stApp section[data-testid="stSidebar"] ul[role="listbox"] *,
+    .stApp.stApp.stApp section[data-testid="stSidebar"] li[role="option"],
+    .stApp.stApp.stApp section[data-testid="stSidebar"] li[role="option"] * {{
+        color: {UHO_INK} !important;
+        background-color: #FFFFFF !important;
+    }}
+    .stApp.stApp.stApp section[data-testid="stSidebar"] li[role="option"]:hover,
+    .stApp.stApp.stApp section[data-testid="stSidebar"] li[aria-selected="true"] {{
+        background-color: #EEF0F3 !important;
+    }}
+
     /* --- Kotak ISIAN bernuansa TERANG di dalam sidebar (kotak select box
            yang tertutup, chip multiselect) TIDAK ikut memakai warna terang
            dari aturan sidebar umum — sebab kotaknya sendiri berlatar putih,
@@ -469,7 +556,7 @@ with st.sidebar:
     tahun_terpilih = st.select_slider(
         "Rentang tahun ditampilkan",
         options=YEARS,
-        value=(2021, 2026),
+        value=(YEARS[0], YEARS[-1]),
     )
     lembaga_terpilih = st.multiselect(
         "Filter lembaga pemeringkat",
@@ -483,7 +570,8 @@ with st.sidebar:
         help="Sesuai arahan: data dapat dimutakhirkan setiap tahun atau setiap semester (6 bulan).",
     )
     st.markdown("---")
-    st.caption("Sumber data: *Data_Ranking_UHO.xlsx*. Skor huruf A–C adalah klasifikasi internal — lihat menu Metodologi Skor.")
+    _sumber_txt = "data_ranking.csv" if DATA_FROM_CSV else "data bawaan kode (data_ranking.csv tidak ditemukan)"
+    st.caption(f"Sumber data: *{_sumber_txt}*, cakupan tahun {YEARS[0]}–{YEARS[-1]}. Skor huruf A–C adalah klasifikasi internal — lihat menu Metodologi Skor.")
 
 years_range = [y for y in YEARS if tahun_terpilih[0] <= y <= tahun_terpilih[1]]
 if not lembaga_terpilih:
@@ -497,7 +585,7 @@ block(f"""
     <div>{logo_markup(72)}</div>
     <div>
         <p class="lh-title">DASHBOARD PEMERINGKATAN UNIVERSITAS HALU OLEO</p>
-        <p class="lh-sub">Pemantauan capaian pemeringkatan nasional &amp; dunia periode 2021–2026</p>
+        <p class="lh-sub">Pemantauan capaian pemeringkatan nasional &amp; dunia periode {YEARS[0]}–{YEARS[-1]}</p>
         <p class="lh-meta">PTN-BLU &nbsp;·&nbsp; Kendari, Sulawesi Tenggara &nbsp;·&nbsp; Berdiri 19 Agustus 1981
         &nbsp;·&nbsp; Pembaruan data: {frekuensi_update}</p>
     </div>
@@ -509,10 +597,10 @@ block(f"""
 # ==========================================================================
 if halaman == "Ringkasan Umum":
 
-    tahun_acuan = years_range[-1] if years_range else 2026
+    tahun_acuan = years_range[-1] if years_range else YEARS[-1]
     nas_now = RATA_RATA.get(tahun_acuan, {}).get("Nasional")
     dunia_now = RATA_RATA.get(tahun_acuan, {}).get("Dunia")
-    tahun_awal = years_range[0] if years_range else 2021
+    tahun_awal = years_range[0] if years_range else YEARS[0]
     nas_awal = RATA_RATA.get(tahun_awal, {}).get("Nasional")
     jumlah_terpetakan = sum(1 for l in lembaga_terpilih if latest_value(l, "Nasional")[1] is not None)
     grade_avg, grade_color, grade_label = rank_to_grade(nas_now, "Nasional")
@@ -520,13 +608,13 @@ if halaman == "Ringkasan Umum":
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         with st.container(border=True):
-            st.metric(f"Rata-rata Peringkat Nasional ({tahun_acuan})", f"#{nas_now:.1f}")
+            st.metric(f"Rata-rata Peringkat Nasional ({tahun_acuan})", f"#{nas_now:.1f}" if nas_now is not None else "Belum ada data")
             if nas_awal and nas_now:
                 arah = "membaik" if nas_now < nas_awal else ("menurun" if nas_now > nas_awal else "stabil")
                 st.caption(f"{arah.capitalize()} sejak {tahun_awal}")
     with col2:
         with st.container(border=True):
-            st.metric(f"Rata-rata Peringkat Dunia ({tahun_acuan})", f"#{dunia_now:,.0f}")
+            st.metric(f"Rata-rata Peringkat Dunia ({tahun_acuan})", f"#{dunia_now:,.0f}" if dunia_now is not None else "Belum ada data")
             st.caption("Gabungan lembaga pemeringkat global")
     with col3:
         with st.container(border=True):
@@ -539,7 +627,7 @@ if halaman == "Ringkasan Umum":
             st.caption(grade_label)
 
     st.write("")
-    block('<div class="section-title">Tren Rata-rata Peringkat UHO (2021–2026)</div>')
+    block(f'<div class="section-title">Tren Rata-rata Peringkat UHO ({YEARS[0]}–{YEARS[-1]})</div>')
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     yrs = years_range
@@ -588,7 +676,7 @@ if halaman == "Ringkasan Umum":
         for lembaga in lembaga_terpilih:
             trow, crow = {}, {}
             for y in years_range:
-                v = RAW[lembaga][y][idx]
+                v = RAW.get(lembaga, {}).get(y, (None, None))[idx]
                 if v is None:
                     trow[y] = "–"
                     crow[y] = None
@@ -703,7 +791,7 @@ elif halaman == "Detail per Lembaga":
             c1, c2, c3, c4 = st.columns([3, 1.6, 1.6, 1])
             with c1:
                 st.markdown(f"**{lembaga}**")
-                st.caption(DESKRIPSI_LEMBAGA.get(lembaga, ""))
+                st.caption(DESKRIPSI_LEMBAGA.get(lembaga, DESKRIPSI_DEFAULT))
             with c2:
                 st.metric(
                     "Peringkat Nasional",
@@ -721,9 +809,9 @@ elif halaman == "Detail per Lembaga":
                 </div>
                 """)
 
-            data = RAW[lembaga]
-            nas_vals = [data[y][0] for y in years_range]
-            dun_vals = [data[y][1] for y in years_range]
+            data = RAW.get(lembaga, {})
+            nas_vals = [data.get(y, (None, None))[0] for y in years_range]
+            dun_vals = [data.get(y, (None, None))[1] for y in years_range]
             ada_nas = any(v is not None for v in nas_vals)
             ada_dun = any(v is not None for v in dun_vals)
 
@@ -864,18 +952,18 @@ elif halaman == "Profil Perguruan Tinggi":
 
     block('<div class="section-title">Lembaga Pemeringkat yang Dipantau</div>')
     cols = st.columns(2)
-    for i, (lembaga, desc) in enumerate(DESKRIPSI_LEMBAGA.items()):
+    for i, lembaga in enumerate(LEMBAGA_LIST):
         with cols[i % 2]:
             with st.container(border=True):
                 st.markdown(f"**{lembaga}**")
-                st.caption(desc)
+                st.caption(DESKRIPSI_LEMBAGA.get(lembaga, DESKRIPSI_DEFAULT))
 
 # ==========================================================================
 # FOOTER
 # ==========================================================================
-block("""
+block(f"""
 <div class="footer-note">
-    Dashboard Pemeringkatan Universitas Halu Oleo · Disusun dari data resmi <i>Data_Ranking_UHO.xlsx</i><br>
+    Dashboard Pemeringkatan Universitas Halu Oleo · Data dikelola melalui <i>data_ranking.csv</i> (cakupan {YEARS[0]}–{YEARS[-1]})<br>
     Skor A–C adalah klasifikasi internal untuk kebutuhan monitoring, bukan nilai resmi lembaga pemeringkat.
 </div>
 """)
