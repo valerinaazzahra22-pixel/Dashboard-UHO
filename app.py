@@ -419,29 +419,26 @@ block(f"""
         background-color: #EEF0F3 !important;
     }}
 
-    /* --- Kotak widget bernuansa TERANG di dalam sidebar (kotak select box
-           yang tertutup, chip multiselect, slider) TIDAK ikut memakai warna
-           terang dari aturan sidebar umum — sebab kotaknya sendiri berlatar
-           putih (mengikuti tema terang), sehingga teks terang di atasnya
-           jadi tak terlihat. Dikecualikan di sini dengan specificity yang
-           SENGAJA dibuat lebih tinggi dari aturan sidebar umum.
-           Dobel selector: pakai data-testid BAWAAN STREAMLIT (stabil lintas
-           versi) DAN atribut data-baseweb (bisa berbeda antar versi
-           Streamlit/BaseWeb) supaya tetap berfungsi meski versi yang
-           ter-install di server (mis. Streamlit Cloud) berbeda dari lokal. --- */
-    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stSelectbox"],
-    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stSelectbox"] *,
-    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stMultiSelect"],
-    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stMultiSelect"] *,
-    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stTextInput"] *,
-    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stNumberInput"] *,
-    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stSelectSlider"] *,
+    /* --- Kotak ISIAN bernuansa TERANG di dalam sidebar (kotak select box
+           yang tertutup, chip multiselect) TIDAK ikut memakai warna terang
+           dari aturan sidebar umum — sebab kotaknya sendiri berlatar putih,
+           sehingga teks terang di atasnya jadi tak terlihat.
+           PENTING: target dipersempit HANYA ke kontrol input itu sendiri
+           (div[data-baseweb="select"] ke bawah), BUKAN ke seluruh isi
+           wrapper [data-testid="stSelectbox"]/"stMultiSelect" — sebab
+           wrapper itu juga membungkus LABEL judul widget (mis. "Filter
+           lembaga pemeringkat"), yang harus tetap berwarna terang karena
+           duduk langsung di atas latar navy, bukan di atas kotak putih. --- */
+    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stSelectbox"] div[data-baseweb="select"],
+    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stSelectbox"] div[data-baseweb="select"] *,
+    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stMultiSelect"] div[data-baseweb="select"],
+    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stMultiSelect"] div[data-baseweb="select"] *,
     .stApp.stApp.stApp section[data-testid="stSidebar"] div[data-baseweb="select"],
     .stApp.stApp.stApp section[data-testid="stSidebar"] div[data-baseweb="select"] *,
     .stApp.stApp.stApp section[data-testid="stSidebar"] div[data-baseweb="tag"],
     .stApp.stApp.stApp section[data-testid="stSidebar"] div[data-baseweb="tag"] *,
-    .stApp.stApp.stApp section[data-testid="stSidebar"] div[data-baseweb="input"],
-    .stApp.stApp.stApp section[data-testid="stSidebar"] div[data-baseweb="input"] * {{
+    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stTextInput"] input,
+    .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stNumberInput"] input {{
         color: {UHO_INK} !important;
     }}
     .stApp.stApp.stApp section[data-testid="stSidebar"] [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
