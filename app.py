@@ -578,10 +578,12 @@ if halaman == "Ringkasan Umum":
     dunia_now = RATA_RATA.get(tahun_acuan, {}).get("Dunia")
     tahun_awal = years_range[0] if years_range else YEARS[0]
     nas_awal = RATA_RATA.get(tahun_awal, {}).get("Nasional")
+    dunia_awal = RATA_RATA.get(tahun_awal, {}).get("Dunia")
     jumlah_terpetakan = sum(1 for l in lembaga_terpilih if latest_value(l, "Nasional")[1] is not None)
-    grade_avg, grade_color, grade_label = rank_to_grade(nas_now, "Nasional")
+    grade_avg_nas, grade_color_nas, grade_label_nas = rank_to_grade(nas_now, "Nasional")
+    grade_avg_dunia, grade_color_dunia, grade_label_dunia = rank_to_grade(dunia_now, "Dunia")
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     with col1:
         with st.container(border=True):
             st.metric(f"Rata-rata Peringkat Nasional ({tahun_acuan})", f"#{nas_now:.1f}" if nas_now is not None else "Belum ada data")
@@ -591,16 +593,34 @@ if halaman == "Ringkasan Umum":
     with col2:
         with st.container(border=True):
             st.metric(f"Rata-rata Peringkat Dunia ({tahun_acuan})", f"#{dunia_now:,.0f}" if dunia_now is not None else "Belum ada data")
-            st.caption("Gabungan lembaga pemeringkat global")
+            if dunia_awal and dunia_now:
+                arah = "membaik" if dunia_now < dunia_awal else ("menurun" if dunia_now > dunia_awal else "stabil")
+                st.caption(f"{arah.capitalize()} sejak {tahun_awal}")
     with col3:
         with st.container(border=True):
             st.metric("Lembaga Aktif Memetakan UHO", f"{jumlah_terpetakan} / {len(lembaga_terpilih)}")
             st.caption(f"Memiliki data peringkat pada {tahun_acuan}")
+
+    st.write("")
+    col4, col5 = st.columns(2)
     with col4:
         with st.container(border=True):
-            st.markdown(f"<div style='font-size:13px; color:{UHO_GREY};'>SKOR KLASIFIKASI RATA-RATA</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='grade-chip' style='background:{grade_color}; font-size:22px; min-width:56px; height:56px;'>{grade_avg}</div>", unsafe_allow_html=True)
-            st.caption(grade_label)
+            st.markdown(f"<div style='font-size:13px; color:{UHO_GREY};'>SKOR KLASIFIKASI RATA-RATA — NASIONAL</div>", unsafe_allow_html=True)
+            cA, cB = st.columns([1, 3])
+            with cA:
+                st.markdown(f"<div class='grade-chip' style='background:{grade_color_nas}; font-size:22px; min-width:56px; height:56px;'>{grade_avg_nas}</div>", unsafe_allow_html=True)
+            with cB:
+                st.markdown(f"<div style='padding-top:8px; color:{UHO_INK};'>{grade_label_nas}</div>", unsafe_allow_html=True)
+                st.caption("Berbasis rata-rata peringkat nasional")
+    with col5:
+        with st.container(border=True):
+            st.markdown(f"<div style='font-size:13px; color:{UHO_GREY};'>SKOR KLASIFIKASI RATA-RATA — DUNIA</div>", unsafe_allow_html=True)
+            cA, cB = st.columns([1, 3])
+            with cA:
+                st.markdown(f"<div class='grade-chip' style='background:{grade_color_dunia}; font-size:22px; min-width:56px; height:56px;'>{grade_avg_dunia}</div>", unsafe_allow_html=True)
+            with cB:
+                st.markdown(f"<div style='padding-top:8px; color:{UHO_INK};'>{grade_label_dunia}</div>", unsafe_allow_html=True)
+                st.caption("Berbasis rata-rata peringkat dunia")
 
     st.write("")
     block(f'<div class="section-title">Tren Rata-rata Peringkat UHO ({YEARS[0]}–{YEARS[-1]})</div>')
